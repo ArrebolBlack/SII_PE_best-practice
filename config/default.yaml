@@ -13,6 +13,11 @@ evaluation:
   num_trials: 5
 
 optimizer:
+  # 优化器使用独立的 LLM provider，应选最强模型
+  # 如评测用 DeepSeek，优化器可用 Claude/GPT-4o/deepseek-reasoner
+  # 未配置时自动 fallback 到评测的 api_keys + api_base_url
+  # optimizer_api_keys: []
+  # optimizer_api_base_url: "https://api.anthropic.com/v1"
   optimizer_model: "deepseek-chat"
   max_iterations: 20
   population_size: 50

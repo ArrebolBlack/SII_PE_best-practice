@@ -31,7 +31,10 @@ class Config:
     num_trials: int = 5
     val_data_path: str = ""
 
-    # 优化器配置
+    # 优化器配置 — 独立的 LLM provider，用于生成/改进 prompt
+    # 优化器应使用最强模型（如 Claude、GPT-4o、deepseek-reasoner）
+    optimizer_api_keys: list[str] = field(default_factory=list)  # 为空时 fallback 到 api_keys
+    optimizer_api_base_url: str = ""  # 为空时 fallback 到 api_base_url
     optimizer_model: str = "deepseek-chat"
     max_iterations: int = 20
     population_size: int = 50
@@ -91,7 +94,7 @@ class Config:
         """校验配置，必要时输出警告。"""
         if not self.api_keys:
             logger.warning(
-                "未配置 API Key。请设置环境变量 SII_PE_API_KEYS（逗号分隔多个 key）"
+                "未配置评测 API Key。请设置环境变量 SII_PE_API_KEYS（逗号分隔多个 key）"
             )
 
         if self.api_keys and self.max_concurrency > 10 * len(self.api_keys):
@@ -100,6 +103,21 @@ class Config:
                 f"的建议上限（每 key 约 10 并发）。建议添加更多 API Key 以保证负载均衡。\n"
                 f"设置方式：export SII_PE_API_KEYS=key1,key2,key3"
             )
+
+        # 优化器配置 fallback
+        if not self.optimizer_api_keys:
+            self.optimizer_api_keys = self.api_keys
+            logger.info("优化器 API Key 未单独配置，复用评测 API Key")
+        if not self.optimizer_api_base_url:
+            self.optimizer_api_base_url = self.api_base_url
+
+    def get_optimizer_api_keys(self) -> list[str]:
+        """获取优化器的 API Keys（已处理 fallback）。"""
+        return self.optimizer_api_keys or self.api_keys
+
+    def get_optimizer_api_base_url(self) -> str:
+        """获取优化器的 API Base URL（已处理 fallback）。"""
+        return self.optimizer_api_base_url or self.api_base_url
 
     @staticmethod
     def _load_yaml(path: str) -> dict:
@@ -118,11 +136,15 @@ class Config:
             "SII_PE_MAX_CONCURRENCY": "max_concurrency",
             "SII_PE_NUM_TRIALS": "num_trials",
             "SII_PE_MAX_ITERATIONS": "max_iterations",
+            # 优化器独立配置
+            "SII_PE_OPTIMIZER_API_KEYS": "optimizer_api_keys",
+            "SII_PE_OPTIMIZER_API_BASE_URL": "optimizer_api_base_url",
+            "SII_PE_OPTIMIZER_MODEL": "optimizer_model",
         }
         for env_key, config_key in env_map.items():
             val = os.environ.get(env_key)
             if val is not None:
-                if config_key == "api_keys":
+                if config_key in ("api_keys", "optimizer_api_keys"):
                     result[config_key] = [k.strip() for k in val.split(",") if k.strip()]
                 elif config_key in ("max_concurrency", "num_trials", "max_iterations"):
                     result[config_key] = int(val)
@@ -148,7 +170,7 @@ class Config:
         section_map = {
             "llm": ["api_keys", "api_base_url", "model", "temperature", "max_tokens"],
             "evaluation": ["max_concurrency", "num_trials", "val_data_path"],
-            "optimizer": ["optimizer_model", "max_iterations", "population_size", "survivors_per_gen"],
+            "optimizer": ["optimizer_api_keys", "optimizer_api_base_url", "optimizer_model", "max_iterations", "population_size", "survivors_per_gen"],
             "output": ["result_dir", "log_dir"],
         }
         # 直接在顶层的字段

@@ -45,7 +45,13 @@ class PipelineOrchestrator:
         返回:
             {"best_prompt": PromptCandidate, "report": str, "best_score": float}
         """
-        pool = ClientPool(config.api_keys, config.api_base_url)
+        # 评测 pool：用于运行 prompt 得到评测结果
+        eval_pool = ClientPool(config.api_keys, config.api_base_url)
+        # 优化器 pool：用于生成/改进 prompt（独立的 provider，如 Claude/GPT-4o）
+        opt_pool = ClientPool(
+            config.get_optimizer_api_keys(),
+            config.get_optimizer_api_base_url(),
+        )
 
         # 准备输出目录
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -56,27 +62,27 @@ class PipelineOrchestrator:
         logger.info("=" * 60)
         logger.info("阶段 1/5: 任务解析")
         logger.info("=" * 60)
-        task_spec = await TaskParser().parse(instruction_text, pool, config)
+        task_spec = await TaskParser().parse(instruction_text, opt_pool, config)
 
         # 阶段 2: 相关调研
         logger.info("=" * 60)
         logger.info("阶段 2/5: 相关调研")
         logger.info("=" * 60)
-        research = await Researcher().research(task_spec, pool, config)
+        research = await Researcher().research(task_spec, opt_pool, config)
 
         # 阶段 3: 管线搭建
         logger.info("=" * 60)
         logger.info("阶段 3/5: 管线搭建与验证")
         logger.info("=" * 60)
         task, initial_candidate, baseline_result = await PipelineSetup().setup(
-            task_spec, val_data, pool, config
+            task_spec, val_data, opt_pool, config
         )
 
         # 阶段 4: 自主优化
         logger.info("=" * 60)
         logger.info("阶段 4/5: 自主优化")
         logger.info("=" * 60)
-        evaluator = Evaluator(pool, task, config)
+        evaluator = Evaluator(eval_pool, task, config)
         best_candidate, population = await AutoOptimize().run(
             evaluator, val_data, initial_candidate, task_spec, config
         )
@@ -88,7 +94,7 @@ class PipelineOrchestrator:
         report = await ReportGenerator().generate(
             task_spec, research, population,
             evaluator.experiment_log if hasattr(evaluator, 'experiment_log') else None,
-            pool, config
+            opt_pool, config
         )
 
         # 保存报告
