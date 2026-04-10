@@ -44,11 +44,20 @@ pip install -r requirements.txt
 ### 配置
 
 ```bash
-# 设置 API Key（支持多个 key 负载均衡）
-export SII_PE_API_KEYS=sk-key1,sk-key2,sk-key3
+# 复制配置模板，填入你的 API Key
+cp config.example.yaml config.yaml
+# 编辑 config.yaml，将 sk-your-key-here 替换为你的真实 key
+```
 
-# 可选：自定义 API 地址
-export SII_PE_API_BASE_URL=https://api.deepseek.com
+配置文件支持：
+- **多 Key 负载均衡**：在 `api_keys` 列表中添加多个 key，框架自动分配请求
+- **独立优化器模型**：评测和优化器可使用不同的 API provider（如评测用 DeepSeek，优化器用 GPT-4o）
+- **随时调整**：修改 `config.yaml` 后下次运行即生效，无需重启
+
+也可以通过环境变量覆盖（适用于 CI/CD）：
+
+```bash
+export SII_PE_API_KEYS=sk-key1,sk-key2
 ```
 
 ### 使用

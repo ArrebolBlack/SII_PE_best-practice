@@ -2,7 +2,9 @@
 配置系统：支持 YAML 文件 + 环境变量的层级化配置加载。
 
 加载优先级（后者覆盖前者）：
-  default.yaml < task.yaml < 环境变量 < CLI 参数
+  config/default.yaml < config.yaml（用户配置）< task.yaml < 环境变量 < CLI 参数
+
+推荐方式：编辑 config.yaml 管理所有配置（包括 API Key）。
 """
 
 import os
@@ -54,7 +56,12 @@ class Config:
         """
         层级化加载配置。
 
-        加载顺序：default.yaml → task.yaml → 环境变量 → CLI 参数
+        加载顺序：default.yaml → config.yaml（用户配置）→ task.yaml → 环境变量 → CLI 参数
+
+        用户配置文件查找顺序：
+        1. yaml_path 参数指定的路径
+        2. 当前工作目录的 config.yaml
+        3. 项目根目录的 config.yaml
         """
         # 1. 从 default.yaml 加载基础配置
         default_yaml = os.path.join(
@@ -64,10 +71,22 @@ class Config:
         if os.path.exists(default_yaml):
             merged = cls._load_yaml(default_yaml)
 
-        # 2. 用户指定的 yaml 覆盖
-        if yaml_path and os.path.exists(yaml_path):
-            user_cfg = cls._load_yaml(yaml_path)
+        # 2. 自动查找用户 config.yaml
+        user_yaml = None
+        if yaml_path:
+            # 显式指定路径
+            user_yaml = yaml_path
+        elif os.path.exists("config.yaml"):
+            # 当前工作目录
+            user_yaml = "config.yaml"
+        elif os.path.exists(os.path.join(os.path.dirname(__file__), "..", "config.yaml")):
+            # 项目根目录
+            user_yaml = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
+
+        if user_yaml and os.path.exists(user_yaml):
+            user_cfg = cls._load_yaml(user_yaml)
             merged = cls._deep_merge(merged, user_cfg)
+            logger.info(f"已加载用户配置: {os.path.abspath(user_yaml)}")
 
         # 3. task yaml 覆盖
         if task_yaml_path and os.path.exists(task_yaml_path):
@@ -95,14 +114,14 @@ class Config:
         """校验配置，必要时输出警告。"""
         if not self.api_keys:
             logger.warning(
-                "未配置评测 API Key。请设置环境变量 SII_PE_API_KEYS（逗号分隔多个 key）"
+                "未配置 API Key。请在 config.yaml 中设置 llm.api_keys，或通过环境变量 SII_PE_API_KEYS 设置。\n"
+                "示例: cp config.example.yaml config.yaml，然后编辑 config.yaml 填入你的 key。"
             )
 
         if self.api_keys and self.max_concurrency > 10 * len(self.api_keys):
             logger.warning(
                 f"当前并发数 {self.max_concurrency} 超过 {len(self.api_keys)} 个 API Key "
-                f"的建议上限（每 key 约 10 并发）。建议添加更多 API Key 以保证负载均衡。\n"
-                f"设置方式：export SII_PE_API_KEYS=key1,key2,key3"
+                f"的建议上限（每 key 约 10 并发）。建议在 config.yaml 中添加更多 key 以保证负载均衡。"
             )
 
         # 优化器配置 fallback

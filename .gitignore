@@ -12,6 +12,12 @@ build/
 .venv/
 venv/
 
+# 用户配置（包含 API Key，不要提交）
+config.yaml
+
+# Agent 会话状态
+session.json
+
 # IDE
 .idea/
 .vscode/

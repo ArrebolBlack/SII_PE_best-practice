@@ -1,0 +1,49 @@
+# SII PE 用户配置文件
+#
+# 使用方法：cp config.example.yaml config.yaml，然后修改下面的配置
+#
+# 配置加载优先级（后者覆盖前者）：
+#   config/default.yaml < config.yaml < 环境变量 < CLI 参数
+
+llm:
+  # === 必填：API Key 列表 ===
+  # 支持多个 key 实现负载均衡，提升并发评测速度
+  # 新增 key：直接在列表中添加即可
+  # 删除 key：从列表中移除即可
+  api_keys:
+    - sk-your-key-here
+    # - sk-your-second-key    # 取消注释以添加更多 key
+    # - sk-your-third-key
+
+  # API 地址（OpenAI 兼容格式）
+  api_base_url: "https://api.deepseek.com"
+
+  # 评测用的模型
+  model: "deepseek-chat"
+  temperature: 1.0
+  max_tokens: 8192
+
+evaluation:
+  # 最大并发数（建议 ≤ 10 × api_keys 数量）
+  max_concurrency: 10
+  # 每个样本评测次数（多次取平均，减少随机性）
+  num_trials: 5
+
+optimizer:
+  # === 优化器 LLM 配置（独立 provider，应选最强模型）===
+  # 未配置时自动复用上方 llm 的 api_keys 和 api_base_url
+  # 如需使用不同的 provider（如 Claude、GPT-4o），取消下方注释：
+
+  # optimizer_api_keys:
+  #   - sk-your-optimizer-key
+  # optimizer_api_base_url: "https://api.openai.com/v1"
+  optimizer_model: "deepseek-chat"
+
+  # 优化轮次
+  max_iterations: 20
+  population_size: 50
+  survivors_per_gen: 10
+
+output:
+  result_dir: "results"
+  log_dir: "logs"
