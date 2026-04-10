@@ -82,7 +82,7 @@ sii-pe evaluate --task arc --prompt examples/data/arc_prompt.json --data example
 sii-pe optimize --task arc --strategy ape --prompt examples/data/arc_prompt.json --data examples/data/arc_sample.jsonl
 
 # 运行完整 5 阶段管线（任务解析 → 调研 → 搭建 → 优化 → 报告）
-sii-pe pipeline --instruction exam_instruction.txt --data examples/data/arc_sample.jsonl
+sii-pe pipeline --instruction examples/data/arc_instruction.txt --data examples/data/arc_sample.jsonl
 ```
 
 #### 模式 B：Agent 接管优化（推荐）
@@ -90,8 +90,9 @@ sii-pe pipeline --instruction exam_instruction.txt --data examples/data/arc_samp
 让 Claude Code / Codex 等 coding agent 自主驱动优化，可修改任意代码（不仅是 prompt 文本）：
 
 ```bash
-# 1. 初始化优化会话
+# 1. 初始化优化会话（自动生成模板 Answer.py）
 sii-pe agent init --task arc --data examples/data/arc_sample.jsonl
+# 如需指定配置: --config config.yaml
 
 # 2. 编写 Answer.py（定义 construct_prompt 和 parse_output 两个函数）
 #    - construct_prompt(d: dict) -> list[dict]: 返回 OpenAI Chat API messages 列表

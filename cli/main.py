@@ -13,8 +13,16 @@ from datetime import datetime
 from sii_pe.config import Config
 
 
+def _load_config(args):
+    """加载配置，检查 --config 指定的文件是否存在。"""
+    if args.config and not os.path.exists(args.config):
+        print(f"错误: 配置文件不存在: {args.config}")
+        sys.exit(1)
+    return Config.load(yaml_path=args.config)
+
+
 def setup_logging(log_dir: str = "logs"):
-    """初始化日志系统。"""
+    """初始化日志系统。详细日志写文件，终端只显示 WARNING 以上。"""
     os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(log_dir, f"sii_pe_{timestamp}.log")
@@ -26,6 +34,8 @@ def setup_logging(log_dir: str = "logs"):
             logging.StreamHandler(),
         ],
     )
+    # 终端只显示 WARNING 以上，避免和 tqdm 进度条混杂
+    logging.getLogger().handlers[1].setLevel(logging.WARNING)
 
 
 async def cmd_evaluate(args):
@@ -36,7 +46,7 @@ async def cmd_evaluate(args):
     from sii_pe.tasks.movie_reranking import MovieRerankingTask
     from sii_pe.tasks.arc_puzzle import ARCPuzzleTask
 
-    config = Config.load(yaml_path=args.config)
+    config = _load_config(args)
 
     # 加载数据
     data_path = args.data or config.val_data_path
@@ -62,19 +72,30 @@ async def cmd_evaluate(args):
     if not os.path.exists(args.prompt):
         print(f"错误: Prompt 文件不存在: {args.prompt}")
         sys.exit(1)
-    with open(args.prompt, "r", encoding="utf-8") as f:
-        prompt_data = json.load(f)
-    candidate = PromptCandidate.from_dict(prompt_data)
+    try:
+        with open(args.prompt, "r", encoding="utf-8") as f:
+            prompt_data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"错误: Prompt JSON 解析失败: {e}")
+        sys.exit(1)
+    try:
+        candidate = PromptCandidate.from_dict(prompt_data)
+    except KeyError as e:
+        print(f"错误: Prompt 文件缺少必填字段: {e}")
+        print("提示: JSON 需包含 name, system_prompt, user_prompt_template 字段")
+        sys.exit(1)
 
     # 评估
     pool = ClientPool(config.api_keys, config.api_base_url)
     evaluator = Evaluator(pool, task, config)
     result, sample_scores = await evaluator.evaluate_prompt(val_data, candidate)
 
-    # 保存结果
+    # 保存结果（文件名含任务和时间戳，避免覆盖）
     os.makedirs(config.result_dir, exist_ok=True)
-    result.save_json(os.path.join(config.result_dir, "eval_result.json"))
-    result.save_csv(os.path.join(config.result_dir, "eval_samples.csv"), sample_scores)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_prefix = os.path.join(config.result_dir, f"eval_{args.task}_{ts}")
+    result.save_json(f"{result_prefix}_result.json")
+    result.save_csv(f"{result_prefix}_samples.csv", sample_scores)
 
     print(f"\n评估完成! 总分: {result.overall_score:.4f}")
     print(f"Trial scores: {[f'{s:.4f}' for s in result.trial_scores]}")
@@ -92,7 +113,7 @@ async def cmd_optimize(args):
     from sii_pe.tasks.movie_reranking import MovieRerankingTask
     from sii_pe.tasks.arc_puzzle import ARCPuzzleTask
 
-    config = Config.load(yaml_path=args.config)
+    config = _load_config(args)
 
     # 加载数据
     data_path = args.data or config.val_data_path
@@ -125,9 +146,17 @@ async def cmd_optimize(args):
     if not os.path.exists(args.prompt):
         print(f"错误: Prompt 文件不存在: {args.prompt}")
         sys.exit(1)
-    with open(args.prompt, "r", encoding="utf-8") as f:
-        prompt_data = json.load(f)
-    initial = PromptCandidate.from_dict(prompt_data)
+    try:
+        with open(args.prompt, "r", encoding="utf-8") as f:
+            prompt_data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"错误: Prompt JSON 解析失败: {e}")
+        sys.exit(1)
+    try:
+        initial = PromptCandidate.from_dict(prompt_data)
+    except KeyError as e:
+        print(f"错误: Prompt 文件缺少必填字段: {e}")
+        sys.exit(1)
 
     # 优化
     pool = ClientPool(config.api_keys, config.api_base_url)
@@ -151,7 +180,7 @@ async def cmd_pipeline(args):
     """运行完整 5 阶段管线。"""
     from sii_pe.workflow.orchestrator import PipelineOrchestrator
 
-    config = Config.load(yaml_path=args.config)
+    config = _load_config(args)
 
     # 读取考试说明
     if not os.path.exists(args.instruction):
@@ -183,6 +212,90 @@ async def cmd_pipeline(args):
 
 # ======================== Agent 命令 ========================
 
+# Answer.py 模板
+_ARC_TEMPLATE = '''"""
+ARC 网格谜题任务 — Answer.py
+
+需要定义两个函数:
+  - construct_prompt(d: dict) -> list[dict]
+      将数据样本转为 OpenAI Chat API messages 列表
+      格式: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+  - parse_output(text: str) -> list[list[int]] | None
+      解析 LLM 原始输出为二维网格
+"""
+
+
+def construct_prompt(d: dict) -> list[dict]:
+    """根据 ARC 样本构造 prompt。"""
+    # d 包含 "train"（训练样本列表）和 "test"（测试样本列表）
+    # d["test"] 中没有 "output"（已隐藏），只有 "input"
+
+    train_text = ""
+    for i, ex in enumerate(d.get("train", [])):
+        inp = ex["input"]
+        out = ex["output"]
+        train_text += f"训练样本 {i+1}:\\n输入: {inp}\\n输出: {out}\\n\\n"
+
+    test_input = d["test"][0]["input"]
+
+    return [
+        {"role": "system", "content": "你是一个 ARC 任务专家。请仔细观察训练样本中的输入输出对，推断变换规则。"},
+        {"role": "user", "content": f"{train_text}测试输入: {test_input}\\n\\n请输出预测网格，格式为 <grid> [[...],[...]] </grid>"},
+    ]
+
+
+def parse_output(text: str):
+    """解析 LLM 输出为二维整数网格。"""
+    import re
+    import ast
+
+    m = re.search(r"<\\s*grid\\s*>\\s*(.*?)\\s*<\\s*/\\s*grid\\s*>", text, re.IGNORECASE | re.DOTALL)
+    if m:
+        try:
+            return ast.literal_eval(m.group(1))
+        except Exception:
+            pass
+    return None
+'''
+
+_MOVIE_TEMPLATE = '''"""
+电影推荐重排序任务 — Answer.py
+
+需要定义两个函数:
+  - construct_prompt(d: dict) -> list[dict]
+      将数据样本转为 OpenAI Chat API messages 列表
+      格式: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+  - parse_output(text: str) -> list[int] | None
+      解析 LLM 原始输出为电影 ID 列表（按兴趣从高到低排序）
+"""
+
+
+def construct_prompt(d: dict) -> list[dict]:
+    """根据电影样本构造 prompt。"""
+    # d 包含 "item_list"（用户历史）、"candidates"（候选电影）
+    history = "\\n".join(f"- {title} (ID: {mid})" for mid, title in d["item_list"][-10:])
+    candidates = "\\n".join(f"{mid}: {title}" for mid, title in d["candidates"])
+
+    return [
+        {"role": "system", "content": "你是一名推荐系统专家。根据用户观影历史，从候选列表中选出最感兴趣的电影。"},
+        {"role": "user", "content": f"用户观影历史:\\n{history}\\n\\n候选电影:\\n{candidates}\\n\\n请按兴趣从高到低输出电影 ID，用逗号分隔。"},
+    ]
+
+
+def parse_output(text: str):
+    """解析 LLM 输出为电影 ID 列表。"""
+    import re
+    text = text.replace("\\n", ",").replace("，", ",").replace(";", ",")
+    ids = re.findall(r"\\b\\d+\\b", text)
+    seen = set()
+    result = []
+    for id_str in ids:
+        if id_str not in seen:
+            seen.add(id_str)
+            result.append(int(id_str))
+    return result if result else None
+'''
+
 
 async def cmd_agent_init(args):
     """初始化 Agent 优化会话。"""
@@ -194,13 +307,21 @@ async def cmd_agent_init(args):
         data_path=args.data,
         config_path=args.config,
     )
+
+    # 自动生成模板 Answer.py（如不存在）
+    answer_path = os.path.join(args.work_dir, "Answer.py")
+    if not os.path.exists(answer_path):
+        if args.task == "arc":
+            template = _ARC_TEMPLATE
+        else:
+            template = _MOVIE_TEMPLATE
+        with open(answer_path, "w", encoding="utf-8") as f:
+            f.write(template)
+        print(f"已生成模板: {answer_path}")
+
     print(f"会话已初始化: task={args.task}, data={args.data}")
     print(f"会话文件: {session.path}")
-    print("\n下一步: 创建 Answer.py，定义以下两个函数：")
-    print("  - construct_prompt(d: dict) -> list[dict]: 返回 OpenAI Chat API messages 列表")
-    print("    格式: [{'role': 'system', 'content': '...'}, {'role': 'user', 'content': '...'}]")
-    print("  - parse_output(text: str) -> Any: 解析 LLM 原始输出")
-    print("\n然后运行: sii-pe agent evaluate --note '描述你的改动'")
+    print("\n下一步: 编辑 Answer.py，然后运行: sii-pe agent evaluate --note '描述你的改动'")
 
 
 async def cmd_agent_evaluate(args):
@@ -219,13 +340,21 @@ async def cmd_agent_evaluate(args):
         sys.exit(1)
 
     print(f"评测 {answer_path} ...")
-    summary = await evaluate_answer(
-        session=session,
-        answer_path=answer_path,
-        note=args.note or "",
-        num_trials=int(args.trials) if args.trials else None,
-        sample_limit=int(args.samples) if args.samples else None,
-    )
+    try:
+        summary = await evaluate_answer(
+            session=session,
+            answer_path=answer_path,
+            note=args.note or "",
+            num_trials=int(args.trials) if args.trials else None,
+            sample_limit=int(args.samples) if args.samples else None,
+        )
+    except (SyntaxError, ImportError) as e:
+        print(f"错误: Answer.py 加载失败: {e}")
+        print("请检查文件语法和函数定义（construct_prompt, parse_output）。")
+        sys.exit(1)
+    except AttributeError as e:
+        print(f"错误: {e}")
+        sys.exit(1)
 
     print(f"\nRound {summary['round']}: {summary['score']:.4f} "
           f"({summary['arrow']}{abs(summary['delta']):.4f})")
@@ -260,6 +389,9 @@ async def cmd_agent_history(args):
     from sii_pe.agent.session import Session
 
     session = Session(work_dir=args.work_dir)
+    if not session.is_initialized:
+        print("会话未初始化。请先运行 sii-pe agent init")
+        return
     print(session.get_trajectory_text())
 
 

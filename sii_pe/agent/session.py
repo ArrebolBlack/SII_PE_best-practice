@@ -64,9 +64,21 @@ class Session:
         round_num = len(self.data["rounds"]) + 1
         prev_best = self.data["best_score"]
 
+        # 保存 Answer.py 版本快照
+        abs_answer = os.path.abspath(answer_file)
+        snapshot_dir = os.path.join(self.work_dir, "snapshots")
+        os.makedirs(snapshot_dir, exist_ok=True)
+        snapshot_name = f"Answer_v{round_num}.py"
+        snapshot_path = os.path.join(snapshot_dir, snapshot_name)
+        if os.path.exists(abs_answer):
+            import shutil
+            shutil.copy2(abs_answer, snapshot_path)
+            logger.info(f"Answer 快照已保存: {snapshot_path}")
+
         entry = {
             "round": round_num,
-            "file": os.path.abspath(answer_file),
+            "file": abs_answer,
+            "snapshot": snapshot_name,
             "score": score,
             "note": note,
             "trial_scores": trial_scores or [],
