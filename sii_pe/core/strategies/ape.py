@@ -45,8 +45,7 @@ class APETrajectoryStrategy(BaseStrategy):
     ) -> list[PromptCandidate]:
         """根据优化轨迹生成改进的 prompt。"""
         trajectory = population.get_trajectory()
-        generation = max((e.get("candidate", {}).get("generation", 0)
-                         for e in population._entries), default=0) + 1
+        generation = population.max_generation + 1
 
         messages = self._build_optimizer_prompt(trajectory, generation)
 

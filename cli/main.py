@@ -30,7 +30,6 @@ def setup_logging(log_dir: str = "logs"):
 
 async def cmd_evaluate(args):
     """评估一个 prompt。"""
-    import jsonlines
     from sii_pe.infra.client_pool import ClientPool
     from sii_pe.infra.evaluator import Evaluator
     from sii_pe.core.prompt_candidate import PromptCandidate
@@ -69,7 +68,6 @@ async def cmd_evaluate(args):
 
 async def cmd_optimize(args):
     """运行优化循环。"""
-    import jsonlines
     from sii_pe.infra.client_pool import ClientPool
     from sii_pe.infra.evaluator import Evaluator
     from sii_pe.core.optimizer import PromptOptimizer

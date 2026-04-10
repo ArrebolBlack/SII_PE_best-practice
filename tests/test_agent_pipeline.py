@@ -18,6 +18,7 @@ Mock 集成测试：用假 API 跑通 agent 完整流程。
 import asyncio
 import json
 import os
+import pytest
 import shutil
 import sys
 import tempfile
@@ -75,6 +76,7 @@ def test_session():
 # ============================================================
 # 测试 2: ClientPool 负载均衡
 # ============================================================
+@pytest.mark.asyncio
 async def test_client_pool():
     from sii_pe.infra.client_pool import ClientPool
 
@@ -377,6 +379,7 @@ def parse_output(text):
 # ============================================================
 # 测试 10: Agent 完整流程（Mock API）
 # ============================================================
+@pytest.mark.asyncio
 async def test_agent_flow():
     """用 mock API 跑通 init → evaluate → status → history → report"""
     from unittest.mock import AsyncMock, patch

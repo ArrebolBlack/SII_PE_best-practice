@@ -40,6 +40,7 @@
 git clone https://github.com/ArrebolBlack/SII_PE_best-practice.git
 cd SII_PE_best-practice
 pip install -r requirements.txt
+pip install -e .  # 安装 sii-pe CLI 命令
 ```
 
 ### 配置
@@ -52,7 +53,7 @@ cp config.example.yaml config.yaml
 
 配置文件支持：
 - **多 Key 负载均衡**：在 `api_keys` 列表中添加多个 key，框架自动分配请求
-- **独立优化器模型**：评测和优化器可使用不同的 API provider（如评测用 DeepSeek，优化器用 GPT-4o）
+- **独立优化器模型**：评测和优化器可使用不同的 API provider（如评测用 DeepSeek，优化器用 Claude Opus）
 - **随时调整**：修改 `config.yaml` 后下次运行即生效，无需重启
 
 也可以通过环境变量覆盖（适用于 CI/CD）：
@@ -114,6 +115,7 @@ Agent 模式的优势：
 
 ```python
 import asyncio
+import json
 from sii_pe.config import Config
 from sii_pe.infra.client_pool import ClientPool
 from sii_pe.infra.evaluator import Evaluator
@@ -126,6 +128,10 @@ async def main():
     task = ARCPuzzleTask()
     evaluator = Evaluator(pool, task, config)
 
+    # 加载验证数据
+    with open("data/val.jsonl", "r", encoding="utf-8") as f:
+        val_data = [json.loads(line) for line in f if line.strip()]
+
     candidate = PromptCandidate(
         name="my_prompt",
         system_prompt="你是 ARC 任务专家。",
@@ -137,6 +143,8 @@ async def main():
 
 asyncio.run(main())
 ```
+
+更多示例见 `examples/quick_start.py`。
 
 ## 自定义任务
 

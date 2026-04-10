@@ -11,8 +11,17 @@ from sii_pe.config import Config
 from sii_pe.infra.client_pool import ClientPool
 from sii_pe.infra.evaluator import Evaluator
 from sii_pe.agent.session import Session
+from sii_pe.tasks.base_task import BaseTask
+from sii_pe.tasks.movie_reranking import MovieRerankingTask
+from sii_pe.tasks.arc_puzzle import ARCPuzzleTask
 
 logger = logging.getLogger(__name__)
+
+# 任务类型到 BaseTask 实例的映射
+_TASK_INSTANCES = {
+    "movie": MovieRerankingTask(),
+    "arc": ARCPuzzleTask(),
+}
 
 
 def load_answer_module(answer_path: str):
@@ -37,6 +46,36 @@ def load_answer_module(answer_path: str):
         )
 
     return module.construct_prompt, module.parse_output
+
+
+class AnswerWrapper(BaseTask):
+    """
+    将考试格式的 construct_prompt(d) / parse_output(text) 包装为 BaseTask 接口。
+
+    复用已有 Task 实现的 compute_metric / extract_ground_truth / mask_sample。
+    """
+
+    def __init__(self, construct_prompt_fn, parse_output_fn, base_task: BaseTask):
+        self._construct_prompt = construct_prompt_fn
+        self._parse_output = parse_output_fn
+        self._base_task = base_task
+
+    def construct_prompt(self, sample, candidate=None):
+        # 考试格式：construct_prompt 只接受 d
+        return self._construct_prompt(sample)
+
+    def parse_output(self, text):
+        result = self._parse_output(text)
+        return result if result else None
+
+    def compute_metric(self, prediction, ground_truth):
+        return self._base_task.compute_metric(prediction, ground_truth)
+
+    def extract_ground_truth(self, sample):
+        return self._base_task.extract_ground_truth(sample)
+
+    def mask_sample(self, sample):
+        return self._base_task.mask_sample(sample)
 
 
 async def evaluate_answer(
@@ -68,63 +107,14 @@ async def evaluate_answer(
         val_data = [json.loads(line.strip()) for line in f if line.strip()]
 
     # 动态导入 Answer
-    construct_prompt, parse_output = load_answer_module(answer_path)
+    construct_prompt_fn, parse_output_fn = load_answer_module(answer_path)
 
-    # 创建适配器：将考试格式的两个函数包装成 BaseTask 接口
-    from sii_pe.tasks.base_task import BaseTask
+    # 获取对应的 Task 实例（复用 compute_metric / extract_ground_truth / mask_sample）
+    task_name = session.data.get("task", "arc")
+    base_task = _TASK_INSTANCES.get(task_name, ARCPuzzleTask())
+    task = AnswerWrapper(construct_prompt_fn, parse_output_fn, base_task)
 
-    class AnswerWrapper(BaseTask):
-        def construct_prompt(self, sample, candidate=None):
-            # 考试格式：construct_prompt 只接受 d
-            return construct_prompt(sample)
-
-        def parse_output(self, text):
-            result = parse_output(text)
-            return result if result else None
-
-        def compute_metric(self, prediction, ground_truth):
-            task = session.data.get("task", "arc")
-            if task in ("arc", "arc_puzzle", "grid_puzzle"):
-                # Exact match
-                if not isinstance(prediction, list) or not isinstance(ground_truth, list):
-                    return 0.0
-                if len(prediction) != len(ground_truth):
-                    return 0.0
-                for r1, r2 in zip(prediction, ground_truth):
-                    if not isinstance(r1, list) or not isinstance(r2, list):
-                        return 0.0
-                    if len(r1) != len(r2):
-                        return 0.0
-                    if any(a != b for a, b in zip(r1, r2)):
-                        return 0.0
-                return 1.0
-            else:
-                # NDCG@10（电影重排序）
-                import math
-                k = 10
-                relevance = [1 if item_id == ground_truth else 0 for item_id in prediction[:k]]
-                dcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(relevance))
-                return dcg / 1.0 if dcg > 0 else 0.0
-
-        def extract_ground_truth(self, sample):
-            task = session.data.get("task", "arc")
-            if task in ("arc", "arc_puzzle", "grid_puzzle"):
-                return sample["test"][0]["output"]
-            else:
-                return sample["target_item"][0]
-
-        def mask_sample(self, sample):
-            task = session.data.get("task", "arc")
-            if task in ("arc", "arc_puzzle", "grid_puzzle"):
-                from copy import deepcopy
-                x = deepcopy(sample)
-                x["test"] = [{"input": sample["test"][0]["input"]}]
-                return x
-            return sample
-
-    task = AnswerWrapper()
-
-    # 创建一个 dummy PromptCandidate 来满足 Evaluator 接口
+    # 创建 dummy PromptCandidate 满足 Evaluator 接口
     from sii_pe.core.prompt_candidate import PromptCandidate
     dummy = PromptCandidate(
         name=f"agent_round_{len(session.data.get('rounds', [])) + 1}",

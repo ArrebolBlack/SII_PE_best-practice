@@ -49,7 +49,7 @@ class AutoOptimize:
             config: 配置
 
         返回:
-            (最佳候选, 种群)
+            (最佳候选, 种群, 实验日志)
         """
         population = Population(max_size=config.population_size)
 
@@ -92,4 +92,4 @@ class AutoOptimize:
         best_candidate, best_score = population.best
         logger.info(f"自主优化完成! 最佳: {best_candidate.name} (score={best_score:.4f})")
 
-        return best_candidate, population
+        return best_candidate, population, optimizer.experiment_log

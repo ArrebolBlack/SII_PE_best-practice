@@ -45,7 +45,7 @@ class Evaluator:
         num_trials: int | None = None,
         max_concurrency: int | None = None,
         sample_limit: int | None = None,
-    ) -> EvalResult:
+    ) -> tuple[EvalResult, dict[int, list[float]]]:
         """
         评测一个 prompt 候选。
 
@@ -73,11 +73,12 @@ class Evaluator:
 
         semaphore = asyncio.Semaphore(max_concurrency)
         sample_scores: dict[int, list[float]] = {i: [] for i in range(num_samples)}
+        sample_outputs: dict[int, list[str]] = {i: [] for i in range(num_samples)}
 
         for trial in range(num_trials):
             logger.info(f"Trial {trial + 1}/{num_trials}")
 
-            async def worker(idx: int, sample: dict) -> tuple[int, float]:
+            async def worker(idx: int, sample: dict) -> tuple[int, float, str]:
                 async with semaphore:
                     try:
                         # 隐藏答案
@@ -96,14 +97,14 @@ class Evaluator:
                         prediction = self.task.parse_output(output_text)
                         if prediction is None:
                             logger.warning(f"样本 {idx} 输出解析失败")
-                            return idx, 0.0
+                            return idx, 0.0, output_text
                         # 计算指标
                         ground_truth = self.task.extract_ground_truth(sample)
                         score = self.task.compute_metric(prediction, ground_truth)
-                        return idx, score
+                        return idx, score, output_text
                     except Exception as e:
                         logger.error(f"样本 {idx} (Trial {trial + 1}) 出错: {e}")
-                        return idx, 0.0
+                        return idx, 0.0, ""
 
             tasks = [worker(idx, sample) for idx, sample in enumerate(data)]
             for coro in tqdm(
@@ -111,8 +112,9 @@ class Evaluator:
                 total=num_samples,
                 desc=f"Trial {trial + 1}",
             ):
-                idx, score = await coro
+                idx, score, raw_output = await coro
                 sample_scores[idx].append(score)
+                sample_outputs[idx].append(raw_output)
 
             # 本次 trial 平均分
             trial_scores_list = [sample_scores[i][-1] for i in range(num_samples)]
@@ -128,7 +130,14 @@ class Evaluator:
         sample_stats = {}
         for idx in range(num_samples):
             arr = np.array(sample_scores[idx], dtype=float)
-            sample_stats[idx] = {"mean": float(np.mean(arr)), "std": float(np.std(arr))}
+            stats: dict = {"mean": float(np.mean(arr)), "std": float(np.std(arr))}
+            # 记录解析失败的样本（便于调试）
+            for t_idx, raw in enumerate(sample_outputs[idx]):
+                if sample_scores[idx][t_idx] == 0.0 and raw:
+                    stats["parse_failed"] = True
+                    stats["raw_output"] = raw
+                    break
+            sample_stats[idx] = stats
 
         overall_score = sum(trial_scores) / len(trial_scores) if trial_scores else 0.0
 

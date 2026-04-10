@@ -28,6 +28,8 @@ evaluation:
   max_concurrency: 10
   # 每个样本评测次数（多次取平均，减少随机性）
   num_trials: 5
+  # 验证数据路径
+  val_data_path: "./data/val.jsonl"
 
 optimizer:
   # === 优化器 LLM 配置（独立 provider，应选最强模型）===

@@ -20,8 +20,17 @@ async def main():
     # 1. 加载配置
     config = Config.load()
 
-    # 2. 加载数据
-    with open(config.val_data_path, "r", encoding="utf-8") as f:
+    # 2. 加载数据（优先使用配置中的路径，回退到示例数据）
+    data_path = config.val_data_path or os.path.join(
+        os.path.dirname(__file__), "data", "arc_sample.jsonl"
+    )
+    if not os.path.exists(data_path):
+        print(f"错误: 数据文件不存在: {data_path}")
+        print("请在 config.yaml 中设置 evaluation.val_data_path，"
+              "或确保 examples/data/arc_sample.jsonl 存在")
+        return
+
+    with open(data_path, "r", encoding="utf-8") as f:
         val_data = [json.loads(line.strip()) for line in f if line.strip()]
     print(f"加载了 {len(val_data)} 个样本")
 

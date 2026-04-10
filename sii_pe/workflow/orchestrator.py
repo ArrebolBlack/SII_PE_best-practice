@@ -83,7 +83,7 @@ class PipelineOrchestrator:
         logger.info("阶段 4/5: 自主优化")
         logger.info("=" * 60)
         evaluator = Evaluator(eval_pool, task, config)
-        best_candidate, population = await AutoOptimize().run(
+        best_candidate, population, experiment_log = await AutoOptimize().run(
             evaluator, val_data, initial_candidate, task_spec, config
         )
 
@@ -93,7 +93,7 @@ class PipelineOrchestrator:
         logger.info("=" * 60)
         report = await ReportGenerator().generate(
             task_spec, research, population,
-            evaluator.experiment_log if hasattr(evaluator, 'experiment_log') else None,
+            experiment_log,
             opt_pool, config
         )
 

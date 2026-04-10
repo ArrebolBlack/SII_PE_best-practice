@@ -31,6 +31,11 @@ class Population:
         return len(self._entries)
 
     @property
+    def max_generation(self) -> int:
+        """返回种群中最大的 generation 值。"""
+        return max((e["candidate"].generation for e in self._entries), default=0)
+
+    @property
     def best(self) -> tuple[PromptCandidate, float] | None:
         if not self._entries:
             return None
