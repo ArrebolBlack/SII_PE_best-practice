@@ -218,6 +218,21 @@ optimizer:
 - [SII_PE_2025_summer](https://github.com/ArrebolBlack/SII_PE_2025_summer) - 电影推荐重排序 PE 考试（NDCG@10: 0.7306）
 - [SII_PE_Exam_2025_Autumn](https://github.com/ArrebolBlack/SII_PE_Exam_2025_Autumn) - ARC 网格谜题 PE 考试框架
 
+## 写在后面
+
+感谢大家的 Star，受宠若惊！
+
+这个项目起源于 2025 Autumn 考试时的一个想法——做一个自动优化 Prompt 的工具（当时叫 ICPO），可惜时间不够没做完，一直鸽着。没想到最近收获了这么多关注，正好借着 Coding Agent 的爆发，做出了这个升级版：
+
+- **自动迭代优化**：借鉴 AlphaEvolve / DSPy / EvoPrompt 的思想，自动生成、评测、筛选 Prompt 变体
+- **Agent 接管模式**：借助 Claude Code / Codex 等 Coding Agent 的执行力，让 Agent 自主设计实验、修改代码、追踪结果——本质上是 Auto Research for Prompt Engineering
+
+保留了过去验证过的高并发评测基础设施，开箱即用。
+
+**对今年考试的判断**：不管题目怎么出，上 Agent 自动实验这条路，轻松拿高分。今年最高分的做法大概率就是 Agent 自动探索 + 人类判断的配合。本框架省去了搭建和配置工作流的时间，欢迎 Fork、提 Issue。
+
+2026 Summer 考试期间将同步更新，欢迎 Star 关注进展！
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ArrebolBlack/SII_PE_best-practice&type=Date)](https://star-history.com/#ArrebolBlack/SII_PE_best-practice&Date)
