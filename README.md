@@ -66,19 +66,23 @@ export SII_PE_API_KEYS=sk-key1,sk-key2
 
 框架提供两种优化模式：
 
+> 项目自带示例数据，位于 `examples/data/` 目录。以下命令可直接运行体验：
+> - ARC 任务示例：`examples/data/arc_sample.jsonl` + `examples/data/arc_prompt.json`
+> - Movie 任务示例：`examples/data/movie_sample.jsonl` + `examples/data/movie_prompt.json`
+
 #### 模式 A：Python 自动优化
 
 框架内置优化循环，自动生成和评测 prompt 变体：
 
 ```bash
-# 评估一个 prompt
-sii-pe evaluate --task arc --prompt prompt.json --data val.jsonl
+# 评估一个 prompt（使用示例数据）
+sii-pe evaluate --task arc --prompt examples/data/arc_prompt.json --data examples/data/arc_sample.jsonl
 
 # 运行优化（支持 ape / evolutionary 策略）
-sii-pe optimize --task arc --strategy ape --prompt initial_prompt.json --data val.jsonl
+sii-pe optimize --task arc --strategy ape --prompt examples/data/arc_prompt.json --data examples/data/arc_sample.jsonl
 
 # 运行完整 5 阶段管线（任务解析 → 调研 → 搭建 → 优化 → 报告）
-sii-pe pipeline --instruction exam_instruction.txt --data val.jsonl
+sii-pe pipeline --instruction exam_instruction.txt --data examples/data/arc_sample.jsonl
 ```
 
 #### 模式 B：Agent 接管优化（推荐）
@@ -87,7 +91,7 @@ sii-pe pipeline --instruction exam_instruction.txt --data val.jsonl
 
 ```bash
 # 1. 初始化优化会话
-sii-pe agent init --task arc --data val.jsonl
+sii-pe agent init --task arc --data examples/data/arc_sample.jsonl
 
 # 2. 编写 Answer.py（定义 construct_prompt 和 parse_output 两个函数）
 #    - construct_prompt(d: dict) -> list[dict]: 返回 OpenAI Chat API messages 列表
@@ -131,8 +135,8 @@ async def main():
     task = ARCPuzzleTask()
     evaluator = Evaluator(pool, task, config)
 
-    # 加载验证数据
-    with open("data/val.jsonl", "r", encoding="utf-8") as f:
+    # 加载验证数据（使用示例数据）
+    with open("examples/data/arc_sample.jsonl", "r", encoding="utf-8") as f:
         val_data = [json.loads(line) for line in f if line.strip()]
 
     candidate = PromptCandidate(

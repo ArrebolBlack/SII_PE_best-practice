@@ -40,14 +40,28 @@ async def cmd_evaluate(args):
 
     # 加载数据
     data_path = args.data or config.val_data_path
-    with open(data_path, "r", encoding="utf-8") as f:
-        val_data = [json.loads(line.strip()) for line in f if line.strip()]
+    if not data_path:
+        print("错误: 未指定数据文件。请通过 --data 参数或 config.yaml 中 evaluation.val_data_path 指定。")
+        sys.exit(1)
+    if not os.path.exists(data_path):
+        print(f"错误: 数据文件不存在: {data_path}")
+        sys.exit(1)
+
+    try:
+        with open(data_path, "r", encoding="utf-8") as f:
+            val_data = [json.loads(line.strip()) for line in f if line.strip()]
+    except json.JSONDecodeError as e:
+        print(f"错误: 数据文件格式错误: {e}")
+        sys.exit(1)
 
     # 选择任务
     task_map = {"movie": MovieRerankingTask, "arc": ARCPuzzleTask}
     task = task_map[args.task]()
 
     # 加载 prompt
+    if not os.path.exists(args.prompt):
+        print(f"错误: Prompt 文件不存在: {args.prompt}")
+        sys.exit(1)
     with open(args.prompt, "r", encoding="utf-8") as f:
         prompt_data = json.load(f)
     candidate = PromptCandidate.from_dict(prompt_data)
@@ -82,6 +96,12 @@ async def cmd_optimize(args):
 
     # 加载数据
     data_path = args.data or config.val_data_path
+    if not data_path:
+        print("错误: 未指定数据文件。请通过 --data 参数或 config.yaml 中 evaluation.val_data_path 指定。")
+        sys.exit(1)
+    if not os.path.exists(data_path):
+        print(f"错误: 数据文件不存在: {data_path}")
+        sys.exit(1)
     with open(data_path, "r", encoding="utf-8") as f:
         val_data = [json.loads(line.strip()) for line in f if line.strip()]
 
@@ -102,6 +122,9 @@ async def cmd_optimize(args):
     strategy = strategy_map[args.strategy]()
 
     # 加载初始 prompt
+    if not os.path.exists(args.prompt):
+        print(f"错误: Prompt 文件不存在: {args.prompt}")
+        sys.exit(1)
     with open(args.prompt, "r", encoding="utf-8") as f:
         prompt_data = json.load(f)
     initial = PromptCandidate.from_dict(prompt_data)
@@ -111,6 +134,8 @@ async def cmd_optimize(args):
     evaluator = Evaluator(pool, task, config)
     population = Population(max_size=config.population_size)
 
+    start_time = datetime.now()
+
     # 评估初始候选
     initial_result, _ = await evaluator.evaluate_prompt(val_data, initial)
     population.add(initial, initial_result.overall_score)
@@ -118,7 +143,8 @@ async def cmd_optimize(args):
     optimizer = PromptOptimizer(evaluator, strategy, population, config)
     best_candidate, best_result = await optimizer.optimize(val_data)
 
-    print(f"\n优化完成! 最佳: {best_candidate.name} (score={population.best[1]:.4f})")
+    elapsed = datetime.now() - start_time
+    print(f"\n优化完成! 耗时 {elapsed}, 最佳: {best_candidate.name} (score={population.best[1]:.4f})")
 
 
 async def cmd_pipeline(args):
@@ -128,18 +154,30 @@ async def cmd_pipeline(args):
     config = Config.load(yaml_path=args.config)
 
     # 读取考试说明
+    if not os.path.exists(args.instruction):
+        print(f"错误: 考试说明文件不存在: {args.instruction}")
+        sys.exit(1)
     with open(args.instruction, "r", encoding="utf-8") as f:
         instruction_text = f.read()
 
     # 加载验证数据
     data_path = args.data or config.val_data_path
+    if not data_path:
+        print("错误: 未指定数据文件。请通过 --data 参数或 config.yaml 中 evaluation.val_data_path 指定。")
+        sys.exit(1)
+    if not os.path.exists(data_path):
+        print(f"错误: 数据文件不存在: {data_path}")
+        sys.exit(1)
     with open(data_path, "r", encoding="utf-8") as f:
         val_data = [json.loads(line.strip()) for line in f if line.strip()]
+
+    start_time = datetime.now()
 
     # 运行管线
     result = await PipelineOrchestrator().run(instruction_text, val_data, config)
 
-    print(f"\n管线完成! 最佳分数: {result['best_score']:.4f}")
+    elapsed = datetime.now() - start_time
+    print(f"\n管线完成! 耗时 {elapsed}, 最佳分数: {result['best_score']:.4f}")
     print(f"结果目录: {result['run_dir']}")
 
 
@@ -158,7 +196,11 @@ async def cmd_agent_init(args):
     )
     print(f"会话已初始化: task={args.task}, data={args.data}")
     print(f"会话文件: {session.path}")
-    print(f"\n下一步: 修改 Answer.py，然后运行 sii-pe agent evaluate --note '描述你的改动'")
+    print("\n下一步: 创建 Answer.py，定义以下两个函数：")
+    print("  - construct_prompt(d: dict) -> list[dict]: 返回 OpenAI Chat API messages 列表")
+    print("    格式: [{'role': 'system', 'content': '...'}, {'role': 'user', 'content': '...'}]")
+    print("  - parse_output(text: str) -> Any: 解析 LLM 原始输出")
+    print("\n然后运行: sii-pe agent evaluate --note '描述你的改动'")
 
 
 async def cmd_agent_evaluate(args):
@@ -256,7 +298,6 @@ async def cmd_agent_report(args):
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
     print(f"报告已保存: {report_path}")
-    print(report)
 
 
 def main():

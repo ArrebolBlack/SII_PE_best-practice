@@ -1,0 +1,11 @@
+{
+  "name": "movie_baseline",
+  "system_prompt": "你是一名专业的推荐系统专家。根据用户的观影历史，从候选列表中选出用户最可能感兴趣的电影，按兴趣从高到低排序。",
+  "user_prompt_template": "用户观影历史：\n{{ history }}\n\n候选电影：\n{{ candidates }}\n\n请根据用户的观影偏好，从候选电影中选出用户最可能观看的电影，按兴趣从高到低输出电影 ID，用逗号分隔。",
+  "generation": 0,
+  "parent_names": [],
+  "metadata": {
+    "strategy": "manual",
+    "description": "电影重排序任务基线 prompt"
+  }
+}

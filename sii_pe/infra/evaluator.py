@@ -96,7 +96,8 @@ class Evaluator:
                         # 解析输出
                         prediction = self.task.parse_output(output_text)
                         if prediction is None:
-                            logger.warning(f"样本 {idx} 输出解析失败")
+                            preview = output_text[:100].replace("\n", "\\n") if output_text else ""
+                            logger.warning(f"样本 {idx} 输出解析失败，原始输出: {preview}")
                             return idx, 0.0, output_text
                         # 计算指标
                         ground_truth = self.task.extract_ground_truth(sample)
