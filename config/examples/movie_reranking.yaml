@@ -1,0 +1,21 @@
+# 电影推荐重排序任务配置示例
+
+llm:
+  model: "deepseek-chat"
+  temperature: 1.0
+
+evaluation:
+  max_concurrency: 50
+  num_trials: 10
+  val_data_path: "data/movie_reranking/val.jsonl"
+
+optimizer:
+  strategy: "hybrid"
+  max_iterations: 30
+  population_size: 50
+  grid_dimensions:
+    role: ["expert", "analyst", "user_roleplay"]
+    style: ["instruction", "question"]
+    format: ["id_first", "name_first"]
+    history_format: ["plain", "timestamped", "reversed"]
+    extras: ["none", "cot", "json_output", "example"]

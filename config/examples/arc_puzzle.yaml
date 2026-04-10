@@ -1,0 +1,15 @@
+# ARC 网格谜题任务配置示例
+
+llm:
+  model: "deepseek-chat"
+  temperature: 0.7
+
+evaluation:
+  max_concurrency: 30
+  num_trials: 5
+  val_data_path: "data/arc_puzzle/val.jsonl"
+
+optimizer:
+  strategy: "hybrid"
+  max_iterations: 20
+  population_size: 30

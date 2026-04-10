@@ -1,0 +1,166 @@
+"""
+配置系统：支持 YAML 文件 + 环境变量的层级化配置加载。
+
+加载优先级（后者覆盖前者）：
+  default.yaml < task.yaml < 环境变量 < CLI 参数
+"""
+
+import os
+import logging
+from dataclasses import dataclass, field
+from typing import Optional
+
+import yaml
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Config:
+    """全局配置"""
+
+    # LLM 配置
+    api_keys: list[str] = field(default_factory=list)
+    api_base_url: str = "https://api.deepseek.com"
+    model: str = "deepseek-chat"
+    temperature: float = 1.0
+    max_tokens: int = 8192
+
+    # 评测配置
+    max_concurrency: int = 10
+    num_trials: int = 5
+    val_data_path: str = ""
+
+    # 优化器配置
+    optimizer_model: str = "deepseek-chat"
+    max_iterations: int = 20
+    population_size: int = 50
+    survivors_per_gen: int = 10
+
+    # 输出配置
+    result_dir: str = "results"
+    log_dir: str = "logs"
+
+    @classmethod
+    def load(
+        cls,
+        yaml_path: Optional[str] = None,
+        task_yaml_path: Optional[str] = None,
+        cli_overrides: Optional[dict] = None,
+    ) -> "Config":
+        """
+        层级化加载配置。
+
+        加载顺序：default.yaml → task.yaml → 环境变量 → CLI 参数
+        """
+        # 1. 从 default.yaml 加载基础配置
+        default_yaml = os.path.join(
+            os.path.dirname(__file__), "..", "config", "default.yaml"
+        )
+        merged = {}
+        if os.path.exists(default_yaml):
+            merged = cls._load_yaml(default_yaml)
+
+        # 2. 用户指定的 yaml 覆盖
+        if yaml_path and os.path.exists(yaml_path):
+            user_cfg = cls._load_yaml(yaml_path)
+            merged = cls._deep_merge(merged, user_cfg)
+
+        # 3. task yaml 覆盖
+        if task_yaml_path and os.path.exists(task_yaml_path):
+            task_cfg = cls._load_yaml(task_yaml_path)
+            merged = cls._deep_merge(merged, task_cfg)
+
+        # 4. 环境变量覆盖
+        env_overrides = cls._load_env()
+        merged = cls._deep_merge(merged, env_overrides)
+
+        # 5. CLI 参数覆盖
+        if cli_overrides:
+            merged = cls._deep_merge(merged, cli_overrides)
+
+        # 展平嵌套结构
+        flat = cls._flatten(merged)
+        config = cls(**{k: v for k, v in flat.items() if hasattr(cls, k) and v is not None})
+
+        # 校验
+        config._validate()
+        return config
+
+    def _validate(self):
+        """校验配置，必要时输出警告。"""
+        if not self.api_keys:
+            logger.warning(
+                "未配置 API Key。请设置环境变量 SII_PE_API_KEYS（逗号分隔多个 key）"
+            )
+
+        if self.api_keys and self.max_concurrency > 10 * len(self.api_keys):
+            logger.warning(
+                f"当前并发数 {self.max_concurrency} 超过 {len(self.api_keys)} 个 API Key "
+                f"的建议上限（每 key 约 10 并发）。建议添加更多 API Key 以保证负载均衡。\n"
+                f"设置方式：export SII_PE_API_KEYS=key1,key2,key3"
+            )
+
+    @staticmethod
+    def _load_yaml(path: str) -> dict:
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+
+    @staticmethod
+    def _load_env() -> dict:
+        """从 SII_PE_ 前缀的环境变量中加载配置。"""
+        result = {}
+        env_map = {
+            "SII_PE_API_KEYS": "api_keys",
+            "SII_PE_API_BASE_URL": "api_base_url",
+            "SII_PE_MODEL": "model",
+            "SII_PE_DATA_PATH": "val_data_path",
+            "SII_PE_MAX_CONCURRENCY": "max_concurrency",
+            "SII_PE_NUM_TRIALS": "num_trials",
+            "SII_PE_MAX_ITERATIONS": "max_iterations",
+        }
+        for env_key, config_key in env_map.items():
+            val = os.environ.get(env_key)
+            if val is not None:
+                if config_key == "api_keys":
+                    result[config_key] = [k.strip() for k in val.split(",") if k.strip()]
+                elif config_key in ("max_concurrency", "num_trials", "max_iterations"):
+                    result[config_key] = int(val)
+                else:
+                    result[config_key] = val
+        return result
+
+    @staticmethod
+    def _deep_merge(base: dict, override: dict) -> dict:
+        """递归合并字典，override 中的值覆盖 base。"""
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = Config._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    @staticmethod
+    def _flatten(d: dict) -> dict:
+        """将嵌套的 YAML 配置展平为 Config 字段。"""
+        flat = {}
+        section_map = {
+            "llm": ["api_keys", "api_base_url", "model", "temperature", "max_tokens"],
+            "evaluation": ["max_concurrency", "num_trials", "val_data_path"],
+            "optimizer": ["optimizer_model", "max_iterations", "population_size", "survivors_per_gen"],
+            "output": ["result_dir", "log_dir"],
+        }
+        # 直接在顶层的字段
+        for key, value in d.items():
+            if not isinstance(value, dict):
+                flat[key] = value
+
+        # 从嵌套 section 中提取
+        for section, fields in section_map.items():
+            if section in d and isinstance(d[section], dict):
+                for field_name in fields:
+                    if field_name in d[section]:
+                        flat[field_name] = d[section][field_name]
+
+        return flat

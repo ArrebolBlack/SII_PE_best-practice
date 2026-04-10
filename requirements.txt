@@ -1,0 +1,6 @@
+openai>=1.0.0
+tqdm
+numpy
+jsonlines
+pyyaml
+jinja2

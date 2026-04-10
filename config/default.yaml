@@ -1,0 +1,23 @@
+# SII PE 默认配置
+
+llm:
+  # API keys 建议通过环境变量 SII_PE_API_KEYS 设置（逗号分隔）
+  # api_keys: []
+  api_base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+  temperature: 1.0
+  max_tokens: 8192
+
+evaluation:
+  max_concurrency: 10
+  num_trials: 5
+
+optimizer:
+  optimizer_model: "deepseek-chat"
+  max_iterations: 20
+  population_size: 50
+  survivors_per_gen: 10
+
+output:
+  result_dir: "results"
+  log_dir: "logs"

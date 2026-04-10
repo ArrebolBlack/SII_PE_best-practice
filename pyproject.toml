@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "sii-pe"
+version = "0.1.0"
+description = "SII PE Best Practice - 自动化 Prompt Engineering 优化框架"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "ArrebolBlack"},
+]
+dependencies = [
+    "openai>=1.0.0",
+    "tqdm",
+    "numpy",
+    "jsonlines",
+    "pyyaml",
+    "jinja2",
+]
+
+[project.scripts]
+sii-pe = "cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["sii_pe*", "cli*"]
