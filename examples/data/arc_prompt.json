@@ -1,0 +1,11 @@
+{
+  "name": "arc_baseline",
+  "system_prompt": "你是一个 ARC 任务专家。请仔细观察训练样本中的输入输出对，推断变换规则，并将该规则应用到测试输入上。",
+  "user_prompt_template": "训练样本：\n{{ train_examples }}\n\n测试输入：\n{{ test_input_rows }}\n\n请分析训练样本的变换规律，然后对测试输入应用相同的变换。\n将预测结果以 <grid> [[...],[...]] </grid> 格式输出。",
+  "generation": 0,
+  "parent_names": [],
+  "metadata": {
+    "strategy": "manual",
+    "description": "ARC 任务基线 prompt"
+  }
+}

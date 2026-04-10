@@ -225,15 +225,20 @@ def test_config():
             _saved[k] = os.environ.pop(k)
 
     try:
-        # 默认配置
-        config = Config.load()
-        assert config.api_base_url == "https://api.deepseek.com"
-        assert config.model == "deepseek-chat"
-        assert config.max_concurrency == 10
+        # 使用临时空配置隔离，避免 editable 模式下找到项目根目录的 config.yaml
+        with tempfile.TemporaryDirectory() as tmpdir:
+            empty_yaml = os.path.join(tmpdir, "empty.yaml")
+            with open(empty_yaml, "w") as f:
+                f.write("")  # 空配置，完全使用 default.yaml 的默认值
 
-        # optimizer fallback
-        assert config.get_optimizer_api_keys() == []  # 没设 key
-        assert config.get_optimizer_api_base_url() == "https://api.deepseek.com"
+            config = Config.load(yaml_path=empty_yaml)
+            assert config.api_base_url == "https://api.deepseek.com"
+            assert config.model == "deepseek-chat"
+            assert config.max_concurrency == 10
+
+            # optimizer fallback
+            assert config.get_optimizer_api_keys() == []  # 没设 key
+            assert config.get_optimizer_api_base_url() == "https://api.deepseek.com"
 
         # YAML 加载
         with tempfile.TemporaryDirectory() as tmpdir2:

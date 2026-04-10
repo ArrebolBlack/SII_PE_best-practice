@@ -87,6 +87,26 @@ class PipelineSetup:
         """用 LLM 根据任务描述生成初始 prompt。"""
         import json
 
+        # 根据任务类型确定模板变量名，确保生成的 prompt 使用正确的占位符
+        task_type = task_spec.task_type.lower().replace(" ", "_")
+        if task_type in ("grid_puzzle", "arc", "arc_puzzle"):
+            template_hint = (
+                "用户提示词模板必须使用以下 Jinja2 占位符：\n"
+                "- {{ train_examples }}: 训练样本文本\n"
+                "- {{ test_input_rows }}: 测试输入的行格式\n"
+                "- {{ test_input_list }}: 测试输入的 Python 列表格式\n\n"
+                "输出要求：预测网格以 <grid> [[...],[...]] </grid> 格式输出。"
+            )
+        elif task_type in ("reranking", "movie_reranking"):
+            template_hint = (
+                "用户提示词模板必须使用以下 Jinja2 占位符：\n"
+                "- {{ history }}: 用户历史观影记录\n"
+                "- {{ candidates }}: 候选电影列表\n\n"
+                "输出要求：按兴趣从高到低输出电影 ID，用逗号分隔。"
+            )
+        else:
+            template_hint = "用户提示词模板中可使用 Jinja2 占位符。"
+
         messages = [
             {
                 "role": "system",
@@ -98,10 +118,11 @@ class PipelineSetup:
                     f"任务：{task_spec.description}\n"
                     f"输出格式：{task_spec.output_format}\n"
                     f"约束：{', '.join(task_spec.constraints) if task_spec.constraints else '无'}\n\n"
+                    f"{template_hint}\n\n"
                     f"请设计一个初始提示词，输出 JSON：\n"
                     f'{{\n'
                     f'  "system_prompt": "系统提示词",\n'
-                    f'  "user_prompt_template": "用户提示词模板（可用 Jinja2 占位符）"\n'
+                    f'  "user_prompt_template": "用户提示词模板"\n'
                     f'}}'
                 ),
             },
@@ -122,6 +143,23 @@ class PipelineSetup:
             )
         except Exception as e:
             logger.warning(f"自动生成初始 prompt 失败: {e}，使用默认模板")
+            return self._get_fallback_prompt(task_type)
+
+    def _get_fallback_prompt(self, task_type: str) -> PromptCandidate:
+        """返回任务类型对应的默认 fallback prompt。"""
+        if task_type in ("grid_puzzle", "arc", "arc_puzzle"):
+            return PromptCandidate(
+                name="initial_default",
+                system_prompt="你是一个 ARC 任务专家。请仔细观察训练样本中的输入输出对，推断变换规则，并将该规则应用到测试输入上。",
+                user_prompt_template=(
+                    "训练样本：\n{{ train_examples }}\n\n"
+                    "测试输入：\n{{ test_input_rows }}\n\n"
+                    "请分析训练样本的变换规律，然后对测试输入应用相同的变换。\n"
+                    "将预测结果以 <grid> [[...],[...]] </grid> 格式输出。"
+                ),
+                metadata={"strategy": "default_fallback"},
+            )
+        else:
             return PromptCandidate(
                 name="initial_default",
                 system_prompt="请根据提供的信息完成任务。",

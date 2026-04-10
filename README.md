@@ -90,6 +90,9 @@ sii-pe pipeline --instruction exam_instruction.txt --data val.jsonl
 sii-pe agent init --task arc --data val.jsonl
 
 # 2. 编写 Answer.py（定义 construct_prompt 和 parse_output 两个函数）
+#    - construct_prompt(d: dict) -> list[dict]: 返回 OpenAI Chat API messages 列表
+#      格式: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+#    - parse_output(text: str) -> Any: 解析 LLM 原始输出为结构化结果
 
 # 3. 评测当前版本
 sii-pe agent evaluate --note "baseline: 基本 few-shot prompt"
