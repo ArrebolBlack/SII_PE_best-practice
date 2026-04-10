@@ -84,7 +84,8 @@ class Config:
 
         # 展平嵌套结构
         flat = cls._flatten(merged)
-        config = cls(**{k: v for k, v in flat.items() if hasattr(cls, k) and v is not None})
+        dataclass_fields = cls.__dataclass_fields__
+        config = cls(**{k: v for k, v in flat.items() if k in dataclass_fields and v is not None})
 
         # 校验
         config._validate()
