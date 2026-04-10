@@ -192,9 +192,9 @@ llm:
   model: "deepseek-chat"
 
 optimizer:
-  optimizer_api_keys: [sk-openai-key]
-  optimizer_api_base_url: "https://api.openai.com/v1"
-  optimizer_model: "gpt-4o"
+  optimizer_api_keys: [sk-anthropic-key]
+  optimizer_api_base_url: "https://api.anthropic.com/v1"
+  optimizer_model: "claude-opus-4-6"
 ```
 
 ## 相关项目

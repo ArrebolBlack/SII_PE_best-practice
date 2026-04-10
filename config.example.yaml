@@ -35,8 +35,9 @@ optimizer:
   # 如需使用不同的 provider（如 Claude、GPT-4o），取消下方注释：
 
   # optimizer_api_keys:
-  #   - sk-your-optimizer-key
-  # optimizer_api_base_url: "https://api.openai.com/v1"
+  #   - sk-your-anthropic-key
+  # optimizer_api_base_url: "https://api.anthropic.com/v1"
+  # optimizer_model: "claude-opus-4-6"  # 推荐使用最强模型作为优化器
   optimizer_model: "deepseek-chat"
 
   # 优化轮次
