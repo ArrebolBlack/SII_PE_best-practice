@@ -9,6 +9,7 @@
 - **通用异步评测框架**：支持高并发 prompt 评测，多 API Key 负载均衡
 - **多种优化策略**：网格搜索、APE 轨迹优化、进化优化（AlphaEvolve/EvoPrompt）
 - **5 阶段端到端工作流**：任务解析 → 相关调研 → 管线搭建 → 自主优化 → 报告生成
+- **Agent 接管模式**：支持 Claude Code / Codex 等 coding agent 自主驱动优化，可修改任意代码
 - **可扩展任务接口**：通过继承 `BaseTask` 快速适配新任务
 
 ## 架构
@@ -62,23 +63,52 @@ export SII_PE_API_KEYS=sk-key1,sk-key2
 
 ### 使用
 
-#### 评估一个 prompt
+框架提供两种优化模式：
+
+#### 模式 A：Python 自动优化
+
+框架内置优化循环，自动生成和评测 prompt 变体：
 
 ```bash
+# 评估一个 prompt
 sii-pe evaluate --task arc --prompt prompt.json --data val.jsonl
-```
 
-#### 运行优化
-
-```bash
+# 运行优化（支持 ape / evolutionary 策略）
 sii-pe optimize --task arc --strategy ape --prompt initial_prompt.json --data val.jsonl
-```
 
-#### 运行完整 5 阶段管线
-
-```bash
+# 运行完整 5 阶段管线（任务解析 → 调研 → 搭建 → 优化 → 报告）
 sii-pe pipeline --instruction exam_instruction.txt --data val.jsonl
 ```
+
+#### 模式 B：Agent 接管优化（推荐）
+
+让 Claude Code / Codex 等 coding agent 自主驱动优化，可修改任意代码（不仅是 prompt 文本）：
+
+```bash
+# 1. 初始化优化会话
+sii-pe agent init --task arc --data val.jsonl
+
+# 2. 编写 Answer.py（定义 construct_prompt 和 parse_output 两个函数）
+
+# 3. 评测当前版本
+sii-pe agent evaluate --note "baseline: 基本 few-shot prompt"
+
+# 4. 修改代码后再次评测
+sii-pe agent evaluate --note "添加了 Chain-of-Thought 推理"
+
+# 5. 查看状态和历史
+sii-pe agent status
+sii-pe agent history
+
+# 6. 生成探索报告
+sii-pe agent report
+```
+
+Agent 模式的优势：
+- 可修改 `construct_prompt`、`parse_output`、数据处理逻辑等**任意代码**
+- 框架自动追踪所有评测历史，无需手动记录
+- 支持 `--samples 5` 快速验证，有提升再用全量数据确认
+- 详见 [AGENT.md](AGENT.md) 获取完整工作流说明
 
 ### Python API
 
@@ -140,14 +170,32 @@ class MyTask(BaseTask):
 
 ## 多 Key 负载均衡
 
-当并发数超过单个 API Key 的限制时，框架自动将请求分配到不同 Key：
+在 `config.yaml` 中添加多个 key，框架自动将请求分配到不同 Key：
 
-```bash
-# 设置 3 个 key，总并发能力 = 3 × 10 = 30
-export SII_PE_API_KEYS=sk-key1,sk-key2,sk-key3
+```yaml
+llm:
+  api_keys:
+    - sk-key1
+    - sk-key2
+    - sk-key3
+  # 总并发能力 = 3 × 10 = 30
 ```
 
-如果并发数超过所有 Key 的总容量，框架会自动提示添加更多 Key。
+新增 key 直接在列表中添加，删除则移除。如果并发数超过所有 Key 的总容量，框架会自动提示添加更多 Key。
+
+评测和优化器支持使用不同的 API provider：
+
+```yaml
+llm:
+  api_keys: [sk-deepseek-key]
+  api_base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+
+optimizer:
+  optimizer_api_keys: [sk-openai-key]
+  optimizer_api_base_url: "https://api.openai.com/v1"
+  optimizer_model: "gpt-4o"
+```
 
 ## 相关项目
 
