@@ -235,7 +235,13 @@ optimizer:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ArrebolBlack/SII_PE_best-practice&type=Date)](https://star-history.com/#ArrebolBlack/SII_PE_best-practice&Date)
+<a href="https://www.star-history.com/?type=date&repos=ArrebolBlack%2FSII_PE_best-practice">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ArrebolBlack/SII_PE_best-practice&type=date&theme=dark&legend=top-left&sealed_token=rOWNGHNBk9QvI4RoS2ehSGMsDa1JRXv4sVTHPOFctXFNYXysfMF-Kv8tAtCa4wepABbwVSAPijqdA_j0CeC0YE75HrpY00os9QFmubI1xNskzsY4Ac52fQ" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ArrebolBlack/SII_PE_best-practice&type=date&legend=top-left&sealed_token=rOWNGHNBk9QvI4RoS2ehSGMsDa1JRXv4sVTHPOFctXFNYXysfMF-Kv8tAtCa4wepABbwVSAPijqdA_j0CeC0YE75HrpY00os9QFmubI1xNskzsY4Ac52fQ" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ArrebolBlack/SII_PE_best-practice&type=date&legend=top-left&sealed_token=rOWNGHNBk9QvI4RoS2ehSGMsDa1JRXv4sVTHPOFctXFNYXysfMF-Kv8tAtCa4wepABbwVSAPijqdA_j0CeC0YE75HrpY00os9QFmubI1xNskzsY4Ac52fQ" />
+ </picture>
+</a>
 
 ## License
 
